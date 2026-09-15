@@ -1,569 +1,1066 @@
 # Active Directory Lab
 
-A hands-on Microsoft Active Directory lab focused on building, administering, and troubleshooting a Windows domain environment. This repository documents the practical configuration and administration work performed in a controlled virtualized lab environment.
+A hands-on **Microsoft Active Directory Domain Services (AD DS)** lab built to demonstrate the deployment, configuration, administration, troubleshooting, and security of a Windows domain environment.
 
-## Overview
+This repository is intentionally structured as a **practical infrastructure and security project**, not as a collection of theory notes. Each major concept is connected to a configuration task, command, verification step, or troubleshooting scenario.
 
-This project demonstrates the deployment and administration of an Active Directory Domain Services (AD DS) environment using Windows Server as the Domain Controller and a Windows client joined to the domain. The lab focuses on understanding how centralized identity, authentication, authorization, organizational structure, and Group Policy are implemented in an enterprise Windows environment.
+---
 
-The objective is not simply to install Active Directory, but to understand how the individual components interact: DNS enables domain discovery, the Domain Controller provides centralized authentication and directory services, Organizational Units provide administrative structure, security groups simplify access management, and Group Policy provides centralized configuration and security enforcement.
+## Project Overview
 
-## Lab Objectives
+This project builds a small enterprise-style Windows domain in a virtualized lab environment. The environment uses **Windows Server 2022** as the Domain Controller and a Windows client such as **Windows 10 or Windows 11** as a domain-joined workstation.
 
-- Deploy a Windows Server-based Active Directory Domain Services environment.
-- Configure a Windows Server as a Domain Controller.
-- Create and manage an Active Directory domain.
-- Understand the relationship between AD DS and DNS.
-- Create Organizational Units (OUs) for administrative organization.
-- Create and manage domain user accounts.
-- Add users to appropriate OUs.
-- Understand security groups and group membership.
-- Join a Windows client machine to the domain.
-- Configure and apply Group Policy Objects (GPOs).
-- Understand GPO scope, inheritance, precedence, and processing.
-- Practice Block Inheritance and Enforced GPO behavior.
-- Configure and understand GPO Security Filtering.
-- Verify policy application from the Windows client.
-- Use administrative and troubleshooting commands such as `gpupdate`, `gpresult`, and WMIC/WMI-related tooling.
-- Develop practical skills relevant to Windows administration, SOC operations, identity security, and enterprise security monitoring.
-
-## Lab Architecture
-
-The environment consists of a small virtualized Windows domain designed to reproduce the core components of an enterprise Active Directory environment.
+The lab covers the complete lifecycle of a basic Active Directory environment:
 
 ```text
-                         Active Directory Domain
-                                  |
-                         +----------------+
-                         | Domain Controller|
-                         |  Windows Server |
-                         |     AD DS       |
-                         |      DNS        |
-                         +--------+-------+
-                                  |
-                         Domain Authentication
-                         Group Policy Processing
-                                  |
-                         +--------+-------+
-                         | Windows Client |
-                         | Windows 10/11  |
-                         +----------------+
-```
-
-The Domain Controller acts as the central authority for the domain. The Windows client communicates with the Domain Controller for domain authentication, directory lookups, and Group Policy processing.
-
-## 1. Active Directory Domain Services (AD DS)
-
-Active Directory Domain Services is Microsoft's directory service for managing identities, computers, groups, policies, and other resources in a Windows domain environment.
-
-Instead of maintaining independent local accounts on every computer, an organization can maintain identities centrally within Active Directory. A user can then authenticate against the domain and receive access according to the permissions and policies assigned to that identity.
-
-AD DS provides several important capabilities:
-
-- Centralized identity management.
-- Authentication of domain users and computers.
-- Authorization through security groups and permissions.
-- Centralized configuration through Group Policy.
-- Organizational structure through Organizational Units.
-- Directory-based management of computers, users, groups, and other objects.
-- Integration with DNS for domain discovery and communication.
-
-In this lab, AD DS forms the core of the Windows enterprise environment.
-
-## 2. Domain Controller
-
-A Domain Controller (DC) is a Windows Server system running Active Directory Domain Services that provides authentication and directory services for the domain.
-
-The Domain Controller maintains the Active Directory database and responds to requests from domain members. When a domain user logs in, the client communicates with the Domain Controller to validate the user's credentials and establish the user's domain security context.
-
-The Domain Controller is therefore a critical security component. Compromise of a Domain Controller can provide an attacker with extensive control over identities, computers, policies, and resources throughout the domain.
-
-### Key responsibilities
-
-- Authenticate domain users.
-- Authenticate domain computers.
-- Store directory objects.
-- Process directory queries.
-- Participate in Group Policy processing.
-- Provide domain-related DNS functionality.
-- Maintain domain security information.
-
-## 3. DNS and Active Directory
-
-DNS is fundamental to Active Directory. Domain clients use DNS to locate services provided by Domain Controllers and other domain resources.
-
-A common misconception is that DNS is simply used to translate names into IP addresses. In an Active Directory environment, DNS also contains service records that help clients locate domain services such as LDAP and Kerberos.
-
-The relationship can be summarized as:
-
-```text
-Windows Client
-      |
-      | DNS query
-      v
-DNS Server / Domain Controller
-      |
-      | Locate domain services
-      v
+Windows Server 2022
+        |
+        | Install AD DS + DNS
+        v
 Domain Controller
-      |
-      | Authentication / Directory / GPO
-      v
-Windows Client
+        |
+        +-----------------------------+
+        |                             |
+        v                             v
+Active Directory                    DNS
+        |                             |
+        +-------------+---------------+
+                      |
+                      v
+              Windows 10 / 11 Client
+                      |
+                      +-- Domain Join
+                      +-- User Login
+                      +-- GPO Processing
+                      +-- Policy Verification
 ```
 
-Correct DNS configuration is therefore essential when joining a Windows client to an Active Directory domain.
+The objective is to understand **how the components work together**, rather than simply learning the definition of each component.
 
-## 4. Organizational Units (OUs)
+---
 
-Organizational Units are logical containers within Active Directory used to organize users, computers, groups, and other directory objects.
+# Lab Objectives
 
-OUs are especially important because Group Policy can be linked to them. This allows administrators to apply different configurations to different parts of the organization.
+The project demonstrates practical experience with:
 
-For example, an organization could create:
+- Installing and configuring Windows Server 2022.
+- Configuring a Windows Server machine for Active Directory.
+- Installing the Active Directory Domain Services role.
+- Promoting Windows Server to a Domain Controller.
+- Installing and configuring DNS as part of the AD environment.
+- Creating an Active Directory domain.
+- Managing users and computers.
+- Creating Organizational Units (OUs).
+- Creating and managing security groups.
+- Moving users into appropriate OUs.
+- Joining Windows client systems to the domain.
+- Logging into Windows using domain accounts.
+- Creating and linking Group Policy Objects.
+- Configuring User Configuration and Computer Configuration policies.
+- Understanding GPO inheritance and precedence.
+- Working with Block Inheritance.
+- Working with Enforced GPOs.
+- Configuring GPO Security Filtering.
+- Testing policy behavior from a domain-joined client.
+- Using `gpupdate` to refresh policies.
+- Using `gpresult` to identify applied policies.
+- Using Windows administrative tools for troubleshooting.
+- Understanding WMI/WMIC and modern PowerShell alternatives.
+- Connecting Active Directory administration with SOC monitoring and Windows security.
 
-```text
-Domain
-|
-+-- Sales
-|   +-- Users
-|   +-- Computers
-|
-+-- HR
-|   +-- Users
-|   +-- Computers
-|
-+-- IT
-    +-- Users
-    +-- Computers
-```
+---
 
-The exact structure can vary depending on organizational requirements. The key principle is that OUs should provide meaningful administrative boundaries rather than simply becoming folders for arbitrary objects.
+# 1. Lab Requirements
 
-## 5. Domain Users
+## Recommended Virtual Machines
 
-A domain user is an identity stored in Active Directory rather than only on an individual Windows computer.
+| System | Recommended OS | Purpose |
+|---|---|---|
+| VM 01 | Windows Server 2022 | Domain Controller, AD DS, DNS |
+| VM 02 | Windows 10 Pro | Domain-joined client / testing workstation |
+| VM 03 | Windows 11 Pro | Optional second domain-joined client |
 
-Creating users centrally allows administrators to control authentication and authorization from Active Directory. Users can be placed into appropriate OUs and added to security groups according to their responsibilities.
+A single Windows client is sufficient for the core lab. A second client is useful when testing different GPO scopes, security filtering, user groups, and computer policies.
 
-The lab includes practical work involving creation and management of domain users and placement of users into appropriate Organizational Units.
+## Recommended Lab Resources
 
-A domain account can be used to authenticate to domain-joined systems, subject to the account's status, credentials, policies, and permissions.
+For a comfortable virtualized lab, allocate approximately:
 
-## 6. Security Groups
+### Domain Controller
 
-Security groups are used to simplify authorization and access management.
+- 2–4 virtual CPU cores
+- 4–8 GB RAM
+- 60+ GB virtual disk
+- 1 virtual network adapter
 
-Instead of assigning permissions individually to every user, administrators can assign users to groups and grant permissions to the groups. This provides a scalable approach to identity and access management.
+### Windows Client
+
+- 2–4 virtual CPU cores
+- 4–8 GB RAM
+- 50+ GB virtual disk
+- 1 virtual network adapter
+
+The lab can be adjusted according to the host machine's available resources.
+
+---
+
+# 2. Operating System Downloads
+
+Always obtain installation media from Microsoft or an appropriately licensed organization source. Do not commit ISO files to this repository.
+
+## Windows Server 2022
+
+Microsoft provides a Windows Server 2022 evaluation through the Microsoft Evaluation Center. The evaluation download provides the 64-bit ISO and supports Standard/Datacenter evaluation scenarios. Microsoft currently documents a 180-day evaluation period. citeturn0search0turn0search1
+
+**Official download:**
+
+- [Windows Server 2022 Evaluation Center](https://www.microsoft.com/en-in/evalcenter/evaluate-windows-server-2022)
+
+For this lab, select:
+
+- 64-bit ISO
+- Server with Desktop Experience
+- Standard Evaluation or Datacenter Evaluation
+
+Server with Desktop Experience is recommended for this lab because the graphical administration tools make it easier to understand AD DS, DNS, Group Policy, Server Manager, and the Windows administrative ecosystem.
+
+## Windows 10
+
+Microsoft provides Windows 10 ISO media through its official software download page. Windows 10 reached end of support on **14 October 2025**, so it should now primarily be treated as a legacy/testing client in a controlled lab. citeturn0search4
+
+**Official download:**
+
+- [Windows 10 ISO / Software Download](https://www.microsoft.com/software-download/windows10)
+
+Windows 10 is still useful in this project because it provides a realistic Windows client for practicing domain joining, Group Policy processing, authentication, and legacy Windows administration scenarios.
+
+## Windows 11
+
+Microsoft provides Windows 11 installation media and ISO options through its official software download page. The page supports installation media creation and ISO downloads for x64 systems. citeturn1search12turn1search2
+
+**Official download:**
+
+- [Windows 11 Software Download](https://www.microsoft.com/software-download/windows11)
+
+Windows 11 is the preferred modern Windows client for extending this lab into current endpoint security and SOC monitoring scenarios.
+
+> **Licensing note:** The repository provides links to Microsoft's official download pages; it does not redistribute Windows installation media or product keys.
+
+---
+
+# 3. Virtual Network Design
+
+The virtual machines should be placed on a network where the Windows client can communicate directly with the Domain Controller.
+
+A simple isolated lab can use a host-only/internal network, while an environment requiring Internet access can use a carefully configured NAT or routed network.
 
 Example:
 
 ```text
-User A ----+
-User B ----+----> Sales Group ----> Resource Permission
-User C ----+
+                 Host Machine
+                     |
+              Virtual Network
+                     |
+          +----------+----------+
+          |                     |
+          v                     v
+  Windows Server 2022       Windows 10/11
+     Domain Controller          Client
+          |                     |
+          +---------+-----------+
+                    |
+               AD Authentication
+               DNS Resolution
+               Group Policy
 ```
 
-If a new employee joins the Sales department, the administrator can add the user to the Sales security group rather than modifying permissions on every resource individually.
+### Critical DNS rule
 
-This principle is particularly important in enterprise environments because it reduces administrative overhead and supports consistent access control.
+The domain client should normally use the **Domain Controller's DNS service** for Active Directory name resolution. Pointing the client only at an unrelated public DNS server can break domain discovery and other AD functionality.
 
-## 7. Domain Joining a Windows Client
+Before attempting the domain join, verify connectivity and DNS resolution.
 
-A Windows workstation becomes a member of the Active Directory domain through the domain-join process.
+Example commands on the client:
 
-The process establishes a trust relationship between the client computer and the domain. Once joined, the computer can authenticate against the domain and receive domain-level configuration through Group Policy.
-
-Conceptually:
-
-```text
-Windows Client
-      |
-      | DNS discovery
-      v
-Domain Controller
-      |
-      | Domain join / computer account
-      v
-Active Directory
-      |
-      | Computer becomes domain member
-      v
-Windows Client
+```cmd
+ipconfig /all
+ping <domain-controller-ip>
+nslookup <domain-name>
 ```
 
-After joining the domain, the client can use domain credentials and process policies associated with its computer account and the user who logs in.
+---
 
-## 8. Group Policy Objects (GPOs)
+# 4. Windows Server 2022 Installation
 
-Group Policy is one of the most important administrative capabilities in a Windows Active Directory environment.
+Create a virtual machine and attach the Windows Server 2022 ISO.
 
-A Group Policy Object contains configuration settings that can be applied to users and computers. Instead of manually configuring every workstation, administrators can define a policy centrally and allow domain members to process that policy.
+During installation:
 
-GPO settings are broadly divided into:
+1. Boot from the ISO.
+2. Select the appropriate language, time, and keyboard options.
+3. Select the Windows Server edition.
+4. Choose **Server with Desktop Experience**.
+5. Accept the license terms.
+6. Select the installation disk.
+7. Complete the installation.
+8. Set a strong local Administrator password.
+9. Log into the server.
 
-- Computer Configuration.
-- User Configuration.
+After installation, do not immediately promote the machine to a Domain Controller. First perform basic server configuration.
 
-Computer Configuration applies to computers and is processed in the context of the computer account. User Configuration applies to users and is processed according to the user account and the policies within scope.
+---
 
-Examples of policy settings include:
+# 5. Initial Windows Server Configuration
 
-- Control Panel restrictions.
-- Password and account policies.
-- Security settings.
-- Windows configuration settings.
-- Administrative templates.
-- Desktop restrictions.
-- Software and system configuration.
-- Windows Defender and security-related settings.
+## 5.1 Rename the Server
 
-## 9. GPO Scope and Linking
-
-A GPO does not automatically affect every object in the domain merely because it exists.
-
-For a GPO to affect an object, it must be within the appropriate scope. GPOs can be linked at different levels of the Active Directory hierarchy, including:
-
-- Site.
-- Domain.
-- Organizational Unit.
-
-This provides administrators with granular control over where policies are applied.
-
-For example, a policy linked to a Sales OU can be designed to affect users or computers within that OU without necessarily applying the same configuration to the entire domain.
-
-## 10. GPO Processing Order and Precedence
-
-Understanding GPO precedence is critical when troubleshooting Group Policy.
-
-The traditional processing order is:
+Use a meaningful hostname such as:
 
 ```text
-Local
-  |
-Site
-  |
-Domain
-  |
-Organizational Unit
+DC01
 ```
 
-This is commonly remembered as **LSDOU**.
+A clear naming convention becomes increasingly important when multiple servers are introduced.
 
-When multiple policies configure the same setting, the policy with higher precedence can determine the effective configuration, subject to filtering, inheritance, enforcement, and other processing rules.
+Example PowerShell:
 
-A simplified example:
-
-```text
-Local GPO
-    ↓
-Site GPO
-    ↓
-Domain GPO
-    ↓
-OU GPO
+```powershell
+Rename-Computer -NewName "DC01" -Restart
 ```
 
-If a Domain-level GPO configures a setting and an OU-level GPO configures the same setting differently, the OU-level configuration generally has higher precedence unless inheritance/enforcement behavior changes the effective processing order.
+Verify the hostname:
 
-This is why administrators must understand not only which GPO exists, but also where it is linked and how it interacts with other policies.
+```powershell
+hostname
+```
 
-## 11. Block Inheritance
+## 5.2 Configure a Static IP Address
 
-Block Inheritance is an Active Directory mechanism that prevents GPOs linked at higher levels of the hierarchy from being inherited by a child container.
+A Domain Controller should have a stable IP address so that clients can reliably locate its services.
 
-For example:
+Example lab configuration:
 
 ```text
-Domain
-  |
-  +-- Domain GPO
-  |
-  +-- Sales OU
+DC01
+IP Address:      192.168.56.10
+Subnet Mask:     255.255.255.0
+Default Gateway: 192.168.56.1
+DNS Server:      192.168.56.10
+```
+
+The exact addressing depends on the virtual network used in the lab.
+
+Verify the configuration:
+
+```cmd
+ipconfig /all
+```
+
+## 5.3 Install Windows Updates
+
+Before configuring the server as a Domain Controller, install appropriate updates available for the lab environment.
+
+This reduces the risk of building the rest of the lab on an unnecessarily outdated operating-system installation.
+
+---
+
+# 6. Install Active Directory Domain Services
+
+Active Directory Domain Services can be installed through Server Manager.
+
+### GUI workflow
+
+```text
+Server Manager
+   |
+   +-- Manage
        |
-       +-- Block Inheritance
+       +-- Add Roles and Features
+           |
+           +-- Role-based or feature-based installation
+               |
+               +-- Select server
+                   |
+                   +-- Active Directory Domain Services
 ```
 
-With Block Inheritance enabled on the Sales OU, applicable policies inherited from higher levels can be prevented from flowing into that OU.
+Select AD DS and allow Server Manager to install the required management tools.
 
-However, Block Inheritance does not simply mean that every policy above the OU disappears in every circumstance. An **Enforced** GPO can override normal inheritance blocking behavior.
+PowerShell can also be used:
 
-This distinction is important when designing and troubleshooting enterprise Group Policy.
+```powershell
+Install-WindowsFeature AD-Domain-Services -IncludeManagementTools
+```
 
-## 12. Enforced GPOs
+After installation, the server has the AD DS role installed but is not yet a Domain Controller.
 
-An Enforced GPO has special inheritance behavior. It is designed to prevent lower-level containers from overriding or blocking the policy through normal inheritance mechanisms.
+---
 
-A simplified example:
+# 7. Promote the Server to a Domain Controller
+
+After installing AD DS, Server Manager displays a notification indicating that configuration is required.
+
+Select:
+
+```text
+Promote this server to a domain controller
+```
+
+For a new isolated lab, select:
+
+```text
+Add a new forest
+```
+
+Example lab domain:
+
+```text
+cloud.com
+```
+
+The actual domain name can be changed to a domain reserved for the lab, such as:
+
+```text
+lab.local
+adlab.test
+corp.example
+```
+
+A lab should avoid using a real production domain name.
+
+During promotion, configure:
+
+- Forest name.
+- Domain name.
+- Domain functional level as appropriate.
+- DNS Server.
+- Global Catalog.
+- Directory Services Restore Mode password.
+- Database location.
+- Log location.
+- SYSVOL location.
+
+The server will restart after successful promotion.
+
+---
+
+# 8. Verify Domain Controller Installation
+
+After reboot, verify that the server is operating as a Domain Controller.
+
+Open Server Manager and verify that AD DS and DNS are available.
+
+The administrative tools should include items such as:
+
+- Active Directory Users and Computers.
+- Active Directory Administrative Center.
+- Active Directory Domains and Trusts.
+- Active Directory Sites and Services.
+- Group Policy Management.
+- DNS Manager.
+- Event Viewer.
+- Windows PowerShell.
+
+The lab screenshots demonstrate this administrative environment, including Server Manager and the **Tools** menu containing Active Directory and Group Policy management utilities.
+
+---
+
+# 9. Active Directory Users and Computers
+
+Open:
+
+```text
+Server Manager
+  -> Tools
+      -> Active Directory Users and Computers
+```
+
+The console provides a hierarchical view of the domain.
+
+A typical domain contains default containers and OUs such as:
+
+```text
+cloud.com
+|
++-- Builtin
++-- Computers
++-- Domain Controllers
++-- ForeignSecurityPrincipals
++-- Managed Service Accounts
++-- Users
++-- SALES OU
++-- TECH OU
++-- Test OU
+```
+
+The screenshots from this lab show a domain containing **SALES OU**, **TECH OU**, and **Test OU**, demonstrating practical OU creation and directory organization.
+
+---
+
+# 10. Create Organizational Units
+
+Right-click the domain:
+
+```text
+New -> Organizational Unit
+```
+
+Example OUs used in the lab:
+
+```text
+SALES OU
+TECH OU
+Test OU
+```
+
+OUs should represent a meaningful administrative boundary. They are particularly useful for applying Group Policy to a defined population of users or computers.
+
+Example structure:
+
+```text
+cloud.com
+|
++-- SALES OU
+|
++-- TECH OU
+|
++-- Test OU
+```
+
+---
+
+# 11. Create Domain Users
+
+Inside an OU:
+
+```text
+Right-click OU
+   -> New
+      -> User
+```
+
+Provide the user's:
+
+- First name.
+- Last name.
+- User logon name.
+- Password.
+- Account options.
+
+Example:
+
+```text
+OU: SALES OU
+User: SalesUser01
+```
+
+The account can then be used to test domain authentication and Group Policy behavior.
+
+---
+
+# 12. Domain Groups
+
+Groups allow permissions and policies to be managed at scale.
+
+Example:
+
+```text
+SALES OU
+   |
+   +-- Sales Users
+        |
+        +-- User01
+        +-- User02
+        +-- User03
+```
+
+Instead of assigning permissions individually, administrators can assign permissions to the group.
+
+This becomes particularly important when implementing least privilege and centralized access control.
+
+---
+
+# 13. Join Windows 10/11 to the Domain
+
+Before joining the client:
+
+1. Configure the client's IP settings.
+2. Set the preferred DNS server to the Domain Controller.
+3. Confirm the client can communicate with the Domain Controller.
+4. Confirm the domain can be resolved.
+
+Useful commands:
+
+```cmd
+ipconfig /all
+ping <domain-controller-ip>
+nslookup <domain-name>
+```
+
+### GUI domain join
+
+Open:
+
+```text
+System Properties
+   -> Computer Name
+      -> Change
+```
+
+Select:
+
+```text
+Domain
+```
+
+Enter the Active Directory domain name.
+
+Provide domain credentials when prompted and restart the client.
+
+After reboot, select the appropriate domain account and authenticate using domain credentials.
+
+---
+
+# 14. Verify the Domain Join
+
+On the client, verify the system's domain membership.
+
+Useful commands:
+
+```cmd
+systeminfo
+```
+
+or:
+
+```cmd
+whoami
+```
+
+The logged-in identity should reflect the domain account, for example:
+
+```text
+CLOUD\SalesUser01
+```
+
+The exact domain and account name depend on the lab configuration.
+
+---
+
+# 15. Group Policy Management
+
+Open:
+
+```text
+Server Manager
+  -> Tools
+      -> Group Policy Management
+```
+
+The Group Policy Management Console allows administrators to:
+
+- Create GPOs.
+- Edit GPOs.
+- Link GPOs.
+- Configure policy settings.
+- Inspect inheritance.
+- Configure enforcement.
+- Configure security filtering.
+- Model policy processing.
+- Generate policy reports.
+
+---
+
+# 16. Practical GPO Exercise — Restrict Control Panel
+
+A practical exercise performed in this lab is configuring a Group Policy to restrict Control Panel access.
+
+### Objective
+
+Create a policy that changes the Windows client behavior for selected users or computers.
+
+### Workflow
+
+```text
+Create GPO
+   |
+   v
+Configure setting
+   |
+   v
+Link GPO to OU
+   |
+   v
+Apply security filtering if required
+   |
+   v
+Refresh client policy
+   |
+   v
+Verify behavior
+```
+
+This practical exercise demonstrates the complete policy lifecycle rather than only explaining what a GPO is.
+
+---
+
+# 17. GPO Precedence — LSDOU
+
+Group Policy processing is commonly described using:
+
+```text
+L = Local
+S = Site
+D = Domain
+OU = Organizational Unit
+```
+
+Therefore:
+
+```text
+Local -> Site -> Domain -> OU
+```
+
+When the same setting is configured by multiple applicable GPOs, the effective result depends on processing order, inheritance, enforcement, security filtering, and the specific policy configuration.
+
+### Practical troubleshooting rule
+
+When a GPO does not behave as expected, do not immediately recreate the GPO. First determine:
+
+1. Where the GPO is linked.
+2. Whether the user/computer is in the expected OU.
+3. Whether the GPO is enabled.
+4. Whether Security Filtering permits application.
+5. Whether inheritance is blocked.
+6. Whether another GPO has higher precedence.
+7. Whether the client has refreshed policy.
+8. What `gpresult` reports.
+
+---
+
+# 18. Block Inheritance Practical
+
+Block Inheritance can be configured on an OU to prevent normal inheritance from higher levels.
+
+Example:
 
 ```text
 Domain
  |
- +-- Security GPO [Enforced]
+ +-- Domain GPO
  |
- +-- Sales OU [Block Inheritance]
+ +-- SALES OU
+      |
+      +-- Block Inheritance
 ```
 
-The enforced policy can continue to apply despite Block Inheritance at the child OU.
+The practical test should involve:
 
-Enforced should therefore be used carefully. Excessive use can make Group Policy troubleshooting difficult and can reduce the flexibility of delegated administration.
+1. Creating a domain-level policy.
+2. Confirming it applies to a test client.
+3. Enabling Block Inheritance on the target OU.
+4. Refreshing policy.
+5. Checking the effective result.
+6. Comparing the behavior with an Enforced policy.
 
-## 13. GPO Security Filtering
+This produces a much stronger understanding of inheritance than memorizing a definition.
 
-Security Filtering controls which security principals are eligible to apply a GPO.
+---
 
-A GPO can be scoped using security groups or individual security principals. This provides an additional layer of control beyond simply linking the GPO to an OU.
+# 19. Enforced GPO Practical
 
-For example:
+An Enforced GPO is useful when a higher-level policy must continue to apply even when lower-level inheritance behavior would otherwise prevent it.
+
+Example test:
 
 ```text
-GPO: Restrict-Control-Panel
-        |
-        +---- Linked to: Sales OU
-        |
-        +---- Security Filter: Sales Users
+Domain
+ |
+ +-- Security Policy [Enforced]
+ |
+ +-- SALES OU [Block Inheritance]
 ```
 
-The OU determines the broad location-based scope, while Security Filtering can further restrict which users or computers are allowed to process the policy.
+Compare:
 
-Security Filtering should be understood together with the permissions required for Group Policy processing. Simply adding a user to a security filter does not mean the GPO will apply if the rest of the required scope and permissions are not satisfied.
+```text
+Test A: Normal GPO + Block Inheritance
+Test B: Enforced GPO + Block Inheritance
+```
 
-## 14. Example: Restricting Control Panel Access
+Use `gpresult` on the client to determine which policies were applied.
 
-One practical policy scenario in the lab involved configuring a GPO to control access to Control Panel functionality.
+---
 
-The scenario demonstrates several important Active Directory concepts simultaneously:
+# 20. Security Filtering Practical
 
-1. Create a GPO.
-2. Configure a policy setting.
-3. Link the GPO to the appropriate OU.
-4. Understand inherited policies.
-5. Evaluate GPO precedence.
-6. Test Block Inheritance behavior.
-7. Understand how Enforced policies interact with inheritance.
-8. Use Security Filtering when a policy should affect only selected users or computers.
-9. Verify the resulting configuration on the client.
+Security Filtering can be used to restrict which users or computers can apply a GPO.
 
-This type of exercise is valuable because it moves beyond simply creating a GPO and demonstrates how multiple Group Policy mechanisms interact in a real administrative scenario.
+Example:
 
-## 15. Group Policy Update
+```text
+GPO
+ |
+ +-- Link: SALES OU
+ |
+ +-- Security Filter: Sales Users
+```
 
-After changing Group Policy, the client does not necessarily need to wait for the normal background processing interval before testing the new configuration.
+Practical test:
 
-The following command can be used to manually request a policy refresh:
+1. Create two test users.
+2. Place both in the same OU.
+3. Create a GPO.
+4. Configure a visible test setting.
+5. Apply Security Filtering to one user/group.
+6. Log in as both users.
+7. Run `gpupdate /force`.
+8. Compare the resulting configuration.
+9. Use `gpresult /r` to confirm policy processing.
+
+This demonstrates that OU membership and security filtering solve different scope problems.
+
+---
+
+# 21. Force Group Policy Update
+
+Use:
 
 ```cmd
 gpupdate /force
 ```
 
-The `/force` option requests that policy settings be reapplied.
+A successful refresh does not automatically prove that the desired GPO was applied. Verification is still required.
 
-After executing the command, the administrator can verify whether the expected policy was processed and whether the configuration changed on the client.
+---
 
-## 16. Verifying Applied GPOs with gpresult
+# 22. Verify Effective Policy with gpresult
 
-`gpresult` is an important troubleshooting utility for understanding the effective Group Policy configuration on a Windows system.
-
-A basic command is:
+Use:
 
 ```cmd
 gpresult /r
 ```
 
-This provides a summary of Resultant Set of Policy information, including applied Group Policy Objects and other relevant policy information.
-
-An HTML report can also be generated:
+For a detailed HTML report:
 
 ```cmd
 gpresult /h C:\Temp\gpresult.html
 ```
 
-The generated report provides significantly more detail and is useful when troubleshooting why a policy did or did not apply.
+The report can help determine:
 
-## 17. WMIC and WMI-Based Administration
+- Which user policies were applied.
+- Which computer policies were applied.
+- Which GPOs were denied.
+- Security filtering effects.
+- Group Policy processing details.
 
-Windows Management Instrumentation (WMI) provides an interface for querying and managing Windows operating-system information.
+A useful troubleshooting workflow is:
 
-WMIC was historically used as a command-line interface to WMI. Although WMIC has been deprecated in modern Windows releases, understanding it remains useful when working with older scripts, administrative environments, and existing Windows infrastructure.
+```text
+GPO configuration
+      |
+      v
+Link / Scope
+      |
+      v
+gpupdate /force
+      |
+      v
+gpresult /r
+      |
+      v
+Observe effective policy
+      |
+      v
+Troubleshoot discrepancies
+```
 
-Examples of information historically queried through WMIC include:
+---
 
-- Operating-system information.
-- Computer information.
-- User and process information.
-- Installed software.
-- Hardware information.
+# 23. Windows Administrative Tools Used
 
-Modern administration increasingly uses PowerShell and CIM/WMI cmdlets, but knowledge of legacy tooling remains valuable for security analysis and troubleshooting.
+The lab environment exposes a number of useful administrative tools from **Server Manager -> Tools**, including:
 
-## 18. Active Directory from a Security Perspective
+- Active Directory Administrative Center.
+- Active Directory Domains and Trusts.
+- Active Directory Module for Windows PowerShell.
+- Active Directory Sites and Services.
+- Active Directory Users and Computers.
+- ADSI Edit.
+- Computer Management.
+- DNS.
+- Event Viewer.
+- Group Policy Management.
+- Local Security Policy.
+- Performance Monitor.
+- Services.
+- System Configuration.
+- System Information.
+- Task Scheduler.
+- Windows Defender Firewall with Advanced Security.
+- Windows PowerShell.
+- Windows Server Backup.
 
-Active Directory is not only an administration technology; it is a major security boundary within enterprise networks.
+The provided Server Manager screenshot demonstrates this administration-toolset view.
 
-Identity compromise can provide attackers with access to systems and resources throughout a domain. Misconfigured privileges, weak passwords, excessive group membership, insecure service accounts, and poorly controlled Group Policy can significantly increase the attack surface.
+---
 
-Important security concepts associated with Active Directory include:
+# 24. WMI / WMIC
 
+Windows Management Instrumentation provides a management interface for Windows system information and administrative operations.
+
+WMIC was a command-line interface to WMI and is now deprecated on modern Windows versions. Existing administrative and security workflows may still contain WMIC commands, so understanding the technology remains useful.
+
+Modern Windows administration should generally prefer PowerShell and CIM/WMI cmdlets where appropriate.
+
+Examples of useful PowerShell approaches include:
+
+```powershell
+Get-CimInstance Win32_OperatingSystem
+Get-CimInstance Win32_ComputerSystem
+Get-CimInstance Win32_Process
+```
+
+---
+
+# 25. Active Directory Security Perspective
+
+Active Directory is a critical security boundary in enterprise Windows environments.
+
+An attacker who compromises privileged AD identities can potentially obtain broad access to domain resources. Therefore, administrators and SOC analysts must understand how normal identity operations appear in logs and how abnormal activity can be detected.
+
+Important security areas include:
+
+- Privileged account management.
 - Least privilege.
-- Privileged account protection.
-- Secure authentication.
-- Group membership management.
-- Delegation of administrative privileges.
+- Security group membership.
 - Domain Controller protection.
-- GPO security.
+- Authentication monitoring.
 - Account lifecycle management.
-- Monitoring authentication events.
-- Detection of abnormal administrative activity.
+- GPO change monitoring.
+- PowerShell logging.
+- Windows security event logging.
+- Lateral movement detection.
+- Credential abuse detection.
 
-These concepts are directly relevant to SOC operations because many Windows security events originate from Active Directory authentication and authorization activity.
+---
 
-## 19. Relevance to SOC Operations
+# 26. SOC Relevance
 
-The Active Directory lab provides an important foundation for Windows-based security monitoring.
+The Active Directory lab provides the infrastructure knowledge required to interpret Windows security telemetry.
 
-A SOC analyst frequently investigates events involving:
+A SOC analyst may investigate events involving:
 
-- User logons and logoffs.
-- Failed authentication attempts.
+- Successful logons.
+- Failed logons.
 - Account creation.
 - Account deletion.
+- Password changes.
 - Group membership changes.
-- Privilege escalation.
-- Password changes and resets.
-- Computer account activity.
+- Privileged group modifications.
+- New computer accounts.
 - GPO changes.
-- Administrative activity.
-- Suspicious authentication patterns.
+- Administrative logons.
+- Suspicious PowerShell execution.
+- Lateral movement.
+- Abnormal authentication patterns.
 
-Understanding how Active Directory works makes these events significantly easier to interpret.
+For example, an alert indicating a user was added to a privileged group is much easier to investigate when the analyst understands how Active Directory groups and administrative roles are actually configured.
 
-For example, an analyst investigating a suspicious group-membership change should understand why membership in a privileged group is important, where the change occurs, which account performed it, and what downstream access the affected account may receive.
+---
 
-## 20. Troubleshooting Approach
+# 27. Troubleshooting Playbook
 
-A structured troubleshooting methodology is essential when working with Active Directory.
-
-### DNS problems
-
-Check whether the client is using the correct DNS server. Incorrect DNS configuration can prevent domain discovery and cause domain-join or authentication failures.
-
-### Domain authentication problems
-
-Verify:
-
-- Username and password.
-- Domain membership.
-- Network connectivity.
-- DNS resolution.
-- Domain Controller availability.
-- Account status.
-
-### GPO not applying
+## Client cannot join domain
 
 Check:
 
-1. Whether the GPO is linked to the correct container.
-2. Whether the user/computer belongs to the expected OU.
-3. Whether Security Filtering allows the principal to apply the policy.
-4. Whether inheritance is blocked.
-5. Whether the GPO is enforced.
-6. Whether another GPO has higher precedence.
-7. Whether the policy has actually refreshed on the client.
-8. The output of `gpresult /r` or an HTML `gpresult` report.
+```cmd
+ipconfig /all
+nslookup <domain-name>
+ping <domain-controller-ip>
+```
 
-### Client not receiving domain configuration
+Then verify:
 
-Verify domain connectivity, DNS configuration, computer membership, Group Policy processing, and relevant Windows event logs.
+- Client DNS points to the Domain Controller.
+- Domain Controller is reachable.
+- AD DS and DNS services are running.
+- Time synchronization is reasonable.
+- The domain name is correct.
 
-## 21. Practical Skills Demonstrated
+## GPO is not applying
 
-This project demonstrates practical experience with:
+Check:
 
-- Windows Server administration.
-- Active Directory Domain Services.
-- Domain Controller deployment.
-- DNS fundamentals in an AD environment.
-- User and computer account management.
-- Organizational Units.
-- Security groups.
-- Domain joining.
-- Group Policy administration.
-- GPO linking.
-- GPO precedence.
-- Group Policy inheritance.
-- Block Inheritance.
-- Enforced GPOs.
+```cmd
+gpupdate /force
+gpresult /r
+```
+
+Then investigate:
+
+- OU placement.
+- GPO link.
+- GPO status.
 - Security Filtering.
-- Windows client administration.
-- Group Policy troubleshooting.
-- `gpupdate` and `gpresult`.
-- WMI/WMIC concepts.
-- Windows security administration.
-- Enterprise identity and access management fundamentals.
+- Block Inheritance.
+- Enforced policies.
+- GPO precedence.
+- User vs computer configuration.
 
-## 22. Project Structure
+## User cannot authenticate
 
-The repository can be expanded as the lab develops. A recommended structure is:
+Check:
+
+- Account name.
+- Password.
+- Account status.
+- Domain membership.
+- DNS.
+- Domain Controller connectivity.
+- Time synchronization.
+
+---
+
+# 28. Evidence and Screenshots
+
+Screenshots are treated as **lab evidence**, not decoration. Each screenshot should demonstrate a configuration or verification result.
+
+Recommended evidence includes:
+
+| Evidence | Purpose |
+|---|---|
+| Server Manager Dashboard | Shows installed server roles and management state |
+| Server Manager Tools | Shows available AD/DNS/GPO administration tools |
+| AD Users and Computers | Shows domain structure and OUs |
+| Domain Controller configuration | Demonstrates server promotion/configuration |
+| DNS Manager | Demonstrates AD-integrated DNS configuration |
+| GPO Management Console | Demonstrates GPO creation and linking |
+| GPO Editor | Demonstrates the actual policy configuration |
+| Block Inheritance | Demonstrates inheritance control |
+| Enforced GPO | Demonstrates policy enforcement |
+| Security Filtering | Demonstrates targeted GPO scope |
+| Windows client domain membership | Demonstrates successful domain join |
+| `gpupdate /force` | Demonstrates policy refresh |
+| `gpresult /r` | Demonstrates effective policy |
+| Restricted client setting | Demonstrates the actual policy result |
+
+The repository contains a dedicated screenshot documentation plan in [`screenshots/README.md`](screenshots/README.md).
+
+---
+
+# 29. Practical Lab Checklist
+
+Use this checklist as the execution sequence for rebuilding the environment:
+
+- [ ] Download Windows Server 2022 ISO from Microsoft.
+- [ ] Download Windows 10 and/or Windows 11 ISO from Microsoft.
+- [ ] Create Server VM.
+- [ ] Install Windows Server 2022 Desktop Experience.
+- [ ] Rename server to `DC01`.
+- [ ] Configure static IP.
+- [ ] Configure DNS.
+- [ ] Install AD DS.
+- [ ] Promote server to Domain Controller.
+- [ ] Create a new forest/domain.
+- [ ] Verify AD DS.
+- [ ] Verify DNS.
+- [ ] Open Active Directory Users and Computers.
+- [ ] Create SALES OU.
+- [ ] Create TECH OU.
+- [ ] Create Test OU.
+- [ ] Create test users.
+- [ ] Create security groups.
+- [ ] Create Windows client VM.
+- [ ] Configure client DNS to the Domain Controller.
+- [ ] Join client to the domain.
+- [ ] Log in using a domain account.
+- [ ] Create a test GPO.
+- [ ] Link the GPO to an OU.
+- [ ] Configure a practical policy.
+- [ ] Run `gpupdate /force`.
+- [ ] Run `gpresult /r`.
+- [ ] Generate an HTML `gpresult` report.
+- [ ] Test GPO precedence.
+- [ ] Test Block Inheritance.
+- [ ] Test Enforced GPO behavior.
+- [ ] Test Security Filtering.
+- [ ] Capture evidence screenshots.
+- [ ] Document troubleshooting observations.
+
+---
+
+# 30. Repository Structure
 
 ```text
 Active_Directory/
 |
 +-- README.md
 |
-+-- documentation/
-|   +-- domain-controller.md
-|   +-- users-and-groups.md
-|   +-- organizational-units.md
-|   +-- group-policy.md
-|   +-- troubleshooting.md
++-- docs/
+|   +-- WINDOWS_SERVER_SETUP.md
+|   +-- PRACTICAL_LABS.md
+|   +-- TROUBLESHOOTING.md
 |
 +-- screenshots/
-|   +-- domain-controller/
-|   +-- users-and-groups/
-|   +-- gpo/
-|   +-- client/
+|   +-- README.md
+|   +-- 01-server-manager-dashboard.png
+|   +-- 02-active-directory-users-and-computers.png
+|   +-- 03-server-manager-tools.png
+|   +-- ...
 |
 +-- scripts/
     +-- powershell/
     +-- cmd/
 ```
 
-Screenshots and configuration evidence can be added as the lab evolves. Sensitive information such as passwords, private keys, authentication tokens, personal IP information, or other secrets should never be committed to the repository.
+Do **not** commit:
 
-## 23. Future Expansion
+- Windows ISO files.
+- Product keys.
+- Passwords.
+- NTLM hashes.
+- Private keys.
+- Authentication tokens.
+- Personal information.
+- Sensitive network credentials.
 
-The lab can be extended into a more security-focused Active Directory environment by adding:
+---
+
+# 31. Future Expansion
+
+The lab can be expanded into a full Windows enterprise security lab by adding:
 
 - Multiple Domain Controllers.
-- Windows Server hardening.
-- Advanced Group Policy security controls.
-- Active Directory auditing.
 - Windows Event Forwarding.
-- Sysmon telemetry.
+- Sysmon.
+- Advanced Windows auditing.
 - PowerShell logging.
-- Windows Defender configuration.
-- Privileged Access Management concepts.
+- Microsoft Defender configuration.
 - Kerberos authentication analysis.
-- LDAP security.
 - NTLM authentication analysis.
+- LDAP security.
+- Privileged Access Management concepts.
 - Active Directory attack-path analysis.
-- Detection of suspicious account activity.
-- SIEM integration.
-- Wazuh-based Windows monitoring.
+- Wazuh integration.
+- SIEM ingestion of Windows Security logs.
 - Authentication attack detection.
 - Privilege escalation detection.
 - Lateral movement detection.
+- GPO change monitoring.
+- Active Directory incident-response scenarios.
 
-These extensions can transform the environment from a basic Windows administration lab into a security-focused enterprise Active Directory detection and response lab.
+The long-term goal is to evolve the environment from a basic Windows administration lab into a **security-focused enterprise Active Directory detection and response laboratory**.
 
-## Conclusion
+---
 
-This Active Directory lab provides a practical foundation for understanding enterprise Windows identity infrastructure. The project covers the complete path from deploying a Domain Controller and organizing directory objects to implementing and troubleshooting Group Policy.
+# Conclusion
 
-The most important outcome is understanding how the components work together rather than treating each configuration as an isolated task. Active Directory, DNS, users, groups, OUs, domain-joined computers, and Group Policy form an interconnected identity and management ecosystem.
+This project demonstrates practical Active Directory administration from initial Windows Server deployment through domain creation, organizational structure, domain joining, Group Policy implementation, policy troubleshooting, and security analysis.
 
-This foundation is directly applicable to Windows system administration, identity and access management, SOC analysis, incident response, threat detection, and enterprise security engineering.
+The lab is intentionally evidence-driven: every major configuration should be validated through the relevant Windows console, command, client behavior, or screenshot.
 
-## Repository
-
-**GitHub:** https://github.com/Dheeraj146/Active_Directory
+That approach makes the repository useful not only as documentation of an Active Directory environment, but also as a practical portfolio demonstrating Windows administration, identity and access management, Group Policy, troubleshooting, and security operations fundamentals.
